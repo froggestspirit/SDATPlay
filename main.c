@@ -104,6 +104,7 @@ int main(void)
 	if (0!=fseek(sdatf, 0, SEEK_SET)) return false;
 	if (sizef!=fread(sdat, 1, sizef, sdatf)) return false;
 	printf("SDAT Size: %X\n",sizef);
+	fclose(sdatf);
 	filePos=0;
     NDS_begin(28,SAMPLE_RATE);//SDAT Song Number, Frequency
     printf("PortAudio Test: output sawtooth wave.\n");
