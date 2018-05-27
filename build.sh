@@ -1,0 +1,3 @@
+echo Building...
+gcc -Wall main.c -lm -lportaudio -lpthread -o paTest-`uname -m`
+echo Done!
