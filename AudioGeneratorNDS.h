@@ -73,7 +73,7 @@ signed short chPanL[16];
 signed short chPanR[16];
 signed short chVol[16];
 unsigned char chTranspose[16];
-unsigned char chPitchBend[16];
+int chPitchBend[16];
 unsigned char chPitchBendRange[16];
 unsigned short chSweepPitch[16];
 unsigned char chPriority[16];
@@ -95,6 +95,8 @@ unsigned char chLoopTimes[16];//times left to loop
 unsigned long chLoopOffset[16];//offset to return to from loop end marker
 unsigned long chReturnOffset[16];//offset to return to from the call
 bool chInCall[16];//track hit a call command and did not hit return yet
+bool validInst[16];
+bool validSample[16];
 
 unsigned char slotAttack[16];
 unsigned short slotDecay[16];
