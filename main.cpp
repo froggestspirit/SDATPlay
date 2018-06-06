@@ -52,8 +52,8 @@ int filePos;
 int song;
 int totalSongs;
 
-short *DSAudio;
-short *lastDSAudio;
+char *DSAudio;
+char *lastDSAudio;
 char *filename;
 FILE* sdatf = NULL;
 #include "AudioGeneratorNDS.h"
@@ -111,7 +111,7 @@ static int patestCallback( const void *inputBuffer, void *outputBuffer,
 {
     /* Cast data passed through stream to our structure. */
     paTestData *data = (paTestData*)userData;
-    short *out = (short*)outputBuffer;
+    char *out = (char*)outputBuffer;
     unsigned int i;
     (void) inputBuffer; /* Prevent unused variable warning. */
 
@@ -125,8 +125,12 @@ static int patestCallback( const void *inputBuffer, void *outputBuffer,
             if(song>=(totalSongs-1)) song=-1;
             NDS_begin(++song,SAMPLE_RATE);
         }
-        *out++ = (short)*(DSAudio);
-        *out++ = (short)*(DSAudio+1);
+        *out++ = (char)*(DSAudio);
+        *out++ = (char)*(DSAudio+1);
+        *out++ = (char)*(DSAudio+2);
+        *out++ = (char)*(DSAudio+3);
+        *out++ = (char)*(DSAudio+4);
+        *out++ = (char)*(DSAudio+5);
         //*out++ = data->left_phase;  /* left */
         //*out++ = data->right_phase;  /* right */
         /* Generate simple sawtooth phaser that ranges between -1.0 and 1.0. */
@@ -173,7 +177,7 @@ int main(int argc, char *argv[])
     err = Pa_OpenDefaultStream( &stream,
                                 0,          /* no input channels */
                                 2,          /* stereo output */
-                                paInt16,  /* 32 bit floating point output */
+                                paInt24,  /* 24 bit output */
                                 SAMPLE_RATE,
                                 256,        /* frames per buffer */
                                 patestCallback,

@@ -620,7 +620,7 @@ void NDS_decodeADPCMSample(int i,unsigned char nibble){
 	}
 }
 
-short * NDS_loop(){
+char * NDS_loop(){
 	seqFrame=false;
 	static int c = 0;
 //sample processing
@@ -1083,11 +1083,15 @@ short * NDS_loop(){
 
                 }
             }			
-            mixer[0]+=((sampleOutput[i]*volModL[i])>>7);//left
-            mixer[1]+=((sampleOutput[i]*volModR[i])>>7);//left
+            mixer[0]+=(sampleOutput[i]*volModL[i]);//left
+            mixer[1]+=(sampleOutput[i]*volModR[i]);//left
         }
     }
-    soundOut[0]=((mixer[0]>>4) & 0xFFFF);
-    soundOut[1]=((mixer[1]>>4) & 0xFFFF);
+    soundOut[0]=((mixer[0]>>3) & 0xFF);
+    soundOut[1]=((mixer[0]>>11) & 0xFF);
+    soundOut[2]=((mixer[0]>>19) & 0xFF);
+    soundOut[3]=((mixer[1]>>3) & 0xFF);
+    soundOut[4]=((mixer[1]>>11) & 0xFF);
+    soundOut[5]=((mixer[1]>>19) & 0xFF);
 	return soundOut;
 }

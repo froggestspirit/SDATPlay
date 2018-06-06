@@ -15,7 +15,7 @@ unsigned long NDS_getSampleAddress(unsigned char bank,unsigned short inst);
 unsigned long NDS_getAddress(unsigned long addr);
 bool NDS_setInst(int i, unsigned char index);
 bool NDS_setSample(int i, unsigned long address);
-short * NDS_loop();
+char * NDS_loop();
 bool NDS_stop();
 bool NDS_isRunning(){ return running;}
 void buttonLoop();
@@ -114,7 +114,7 @@ unsigned char instType[128];
 signed short volModL[16];
 signed short volModR[16];
 int mixer[2];//pre mixer
-short soundOut[2];//final output
+char soundOut[6];//final output
 bool chActive[16];//is the channel on
 unsigned long slotPitch[16];
 unsigned long slotPitchFill[16];
