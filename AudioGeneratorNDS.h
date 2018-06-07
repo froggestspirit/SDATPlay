@@ -73,7 +73,8 @@ signed short chPanL[16];
 signed short chPanR[16];
 signed short chVol[16];
 unsigned char chTranspose[16];
-int chPitchBend[16];
+int chPitchBendCur[16];
+unsigned char chPitchBend[16];
 unsigned char chPitchBendRange[16];
 unsigned short chSweepPitch[16];
 unsigned char chPriority[16];
@@ -117,7 +118,7 @@ int mixer[2];//pre mixer
 char soundOut[6];//final output
 bool chActive[16];//is the channel on
 unsigned long slotPitch[16];
-unsigned long slotPitchFill[16];
+float slotPitchFill[16];
 unsigned long samplePitch[16];
 unsigned long samplePitchFill[16];
 unsigned long sampleOffset[16];//offset of the current sample
@@ -142,7 +143,9 @@ signed short sampleStepLoop[16];
 signed char sampleStepIndexStart[16];
 signed short samplePredictorStart[16];
 signed short sampleStepStart[16];
-unsigned long keyRoot[16*0x80];//root key for each key
+unsigned long keyRoot[16*0x80];//root key for each key (freq)
+char keyRootVal[16*0x80];//root key for each key
+char curKeyRoot[16];
 unsigned char keyBank[16*0x80];//for split key instruments
 unsigned short keySample[16*0x80];//for split key instruments
 unsigned char keyAttack[16*0x80];

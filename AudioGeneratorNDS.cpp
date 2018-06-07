@@ -302,6 +302,7 @@ bool NDS_setInst(int i, unsigned char index){
 		keyBank[(i<<7)]=temp[2];
 		keySample[(i<<7)]=temp[0]+(temp[1]<<8);
 		keyRoot[(i<<7)]=MIDI_FREQ[tempKey[0]];
+        keyRootVal[(i<<7)]=tempKey[0];
 		readTemp(4);
 		keyAttack[(i<<7)]=temp[0];
 		keyDecay[(i<<7)]=temp[1];
@@ -320,6 +321,7 @@ bool NDS_setInst(int i, unsigned char index){
 			keySample[keyiPointer+keyi]=temp[0]+(temp[1]<<8);
 			temp[0]=sdat[filePos++];
 			keyRoot[keyiPointer+keyi]=MIDI_FREQ[temp[0]];
+            keyRootVal[keyiPointer+keyi]=temp[0];
 			readTemp(4);
 			keyAttack[keyiPointer+keyi]=temp[0];
 			keyDecay[keyiPointer+keyi]=temp[1];
@@ -341,6 +343,7 @@ bool NDS_setInst(int i, unsigned char index){
 				keySample[keyiPointer+key]=temp[0]+(temp[1]<<8);
 				temp[0]=sdat[filePos++];
 				keyRoot[keyiPointer+key]=MIDI_FREQ[temp[0]];
+                keyRootVal[keyiPointer+key]=temp[0];
 				readTemp(4);
 				keyAttack[keyiPointer+key]=temp[0];
 				keyDecay[keyiPointer+key]=temp[1];
@@ -354,6 +357,7 @@ bool NDS_setInst(int i, unsigned char index){
 				keyBank[keyiPointer+key]=keyBank[keyiPointer+(key-1)];
 				keySample[keyiPointer+key]=keySample[keyiPointer+(key-1)];
 				keyRoot[keyiPointer+key]=keyRoot[keyiPointer+(key-1)];
+                keyRootVal[keyiPointer+key]=keyRootVal[keyiPointer+(key-1)];
 				keyAttack[keyiPointer+key]=keyAttack[keyiPointer+(key-1)];
 				keyDecay[keyiPointer+key]=keyDecay[keyiPointer+(key-1)];
 				keySustain[keyiPointer+key]=keySustain[keyiPointer+(key-1)];
@@ -493,6 +497,7 @@ bool NDS_begin(int songID, int sRate)
 		chPanR[i]=0;
 		chVol[i]=0x7F;
 		chTranspose[i]=0;
+		chPitchBendCur[i]=0;
 		chPitchBend[i]=0;
 		chPitchBendRange[i]=2;
 		chSweepPitch[i]=0;
@@ -525,8 +530,9 @@ bool NDS_begin(int songID, int sRate)
 		samplePitch[i]=0;
 		samplePitchFill[i]=0;
 		//NDS_setSample(i,sampleOffset[i]);
-		validInst[i]=false;//NDS_setInst(i,0);//don't play the channel if a valid instrument is not loaded (to prevent hang-ups)
+		chInstrument[i]=0;
 		validSample[i]=false;
+        validInst[i]=NDS_setInst(i,chInstrument[i]);
 	}
 
 	sseqIndex=songID;
@@ -678,6 +684,8 @@ char * NDS_loop(){
                                     if(chInstrument[i]!=(temp[0]&0x7F)){
                                         chInstrument[i]=temp[0]&0x7F;
                                         validInst[i]=NDS_setInst(i,chInstrument[i]);
+                                        //if(validInst[i]) printf("%X Instrument: %X Set %X\n",i,chInstrument[i],filePos-4);
+                                        if(!validInst[i]) printf("%X Invalid Instrument: %X? %X\n",i,chInstrument[i],filePos-4);
                                     }
                                     varLength=2;
                                     for(int j=0; j<3; j++){
@@ -737,16 +745,17 @@ char * NDS_loop(){
                                 break;
                                 case 0xC4: //Pitch Bend
                                     temp[0]=sdat[filePos++];
-                                    if(temp[0]>128) chPitchBend[i]=((temp[0]-256)*0x40);
-                                    else chPitchBend[i]=(temp[0]*0x40);
-                                    printf("%X Pitch Bend: %i %X\n",i,chPitchBend[i],temp[0]);
+                                    chPitchBend[i]=(temp[0]);
                                     chPointer[i]+=2;
+                                    if(chPitchBend[i]>128) chPitchBendCur[i]=((chPitchBend[i]-256)*chPitchBendRange[i]);
+                                    if(chPitchBend[i]<=128) chPitchBendCur[i]=(chPitchBend[i]*chPitchBendRange[i]);
                                 break;
                                 case 0xC5: //Pitch Bend Range
-                                    printf("%X Undefined Instruction 0xC5 at: %X\n",i,filePos-1);
                                     temp[0]=sdat[filePos++];
                                     chPitchBendRange[i]=temp[0];
                                     chPointer[i]+=2;
+                                    if(chPitchBend[i]>128) chPitchBendCur[i]=((chPitchBend[i]-256)*chPitchBendRange[i]);
+                                    if(chPitchBend[i]<=128) chPitchBendCur[i]=(chPitchBend[i]*chPitchBendRange[i]);
                                 break;
                                 case 0xC6: //Track Priority
                                     printf("%X Undefined Instruction 0xC6 at: %X\n",i,filePos-1);
@@ -923,7 +932,10 @@ char * NDS_loop(){
                                             }
                                             if(instType[chInstrument[i]]>=16){
                                                 if(validInst[i]) validSample[curSlot]=NDS_setSample(curSlot,NDS_getSampleAddress(keyBank[(i<<7)+slotNote[curSlot]],keySample[(i<<7)+slotNote[curSlot]]));
+                                                if(!validInst[i]) printf("%X Invalid Instrument? %X\n",i,filePos-4);
+                                                if(!validSample[curSlot]) printf("%X Invalid Sample? %X\n",i,filePos-4);
                                                 slotPitch[curSlot]=keyRoot[(i<<7)+slotNote[curSlot]];
+                                                curKeyRoot[curSlot]=keyRootVal[(i<<7)+slotNote[curSlot]];
                                                 slotAttack[curSlot]=NDS_Cnv_Attack(keyAttack[(i<<7)+slotNote[curSlot]]);
                                                 slotDecay[curSlot]=NDS_Cnv_Fall(keyDecay[(i<<7)+slotNote[curSlot]]);
                                                 slotSustain[curSlot]=NDS_Cnv_Sust(keySustain[(i<<7)+slotNote[curSlot]]);
@@ -932,6 +944,9 @@ char * NDS_loop(){
                                             }else{
                                                 if(validInst[i]) validSample[curSlot]=NDS_setSample(curSlot,NDS_getSampleAddress(keyBank[(i<<7)],keySample[(i<<7)]));
                                                 slotPitch[curSlot]=keyRoot[(i<<7)];
+                                                curKeyRoot[curSlot]=keyRootVal[(i<<7)];
+                                                if(!validInst[i]) printf("%X Invalid Instrument? %X\n",i,filePos-4);
+                                                if(!validSample[curSlot]) printf("%X Invalid Sample? %X\n",i,filePos-4);
                                                 slotAttack[curSlot]=NDS_Cnv_Attack(keyAttack[(i<<7)]);
                                                 slotDecay[curSlot]=NDS_Cnv_Fall(keyDecay[(i<<7)]);
                                                 slotSustain[curSlot]=NDS_Cnv_Sust(keySustain[(i<<7)]);
@@ -1015,9 +1030,17 @@ char * NDS_loop(){
     mixer[1]=0;
     for(int i=0; i<16; i++){//process each slot
         if(slotFree[i]!=0 && !sampleDone[i]){
-            slotPitchFill[i]+=slotMidiFreq[i];//+(chPitchBend[slotChannel[i]]*chPitchBendRange[slotChannel[i]]);
-            while(slotPitchFill[i]>=slotPitch[i] && slotPitch[i]>0){
-                slotPitchFill[i]-=slotPitch[i];
+            float tune = 0;
+            float keyTune=0;
+            tune += (slotNote[i]) * 128;
+            keyTune += (curKeyRoot[i]) * 128;
+            tune +=chPitchBendCur[slotChannel[i]];//(((float)chPitchBend[slotChannel[i]] * (float)chPitchBendRange[slotChannel[i]]) / 2.0);
+            tune=(440 / 32) * pow(2,((tune - (1152)) / (1536)));
+            keyTune=(440 / 32) * pow(2,((keyTune - (1152)) / (1536)));
+            //finalTune=(int)pow(tune,18);
+            slotPitchFill[i]+=tune;//slotMidiFreq[i];//+(chPitchBend[slotChannel[i]]*chPitchBendRange[slotChannel[i]]);
+            while(slotPitchFill[i]>=keyTune && keyTune>0){
+                slotPitchFill[i]-=keyTune;
                 samplePitchFill[i]+=samplePitch[i];
                 while(samplePitchFill[i]>=sampleRate){
                     samplePitchFill[i]-=sampleRate;
