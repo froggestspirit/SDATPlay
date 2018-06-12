@@ -118,6 +118,21 @@ bool NDS_setInst(int i, unsigned char index){
 	if(instType[index]==0){//blank
 		printf("ERROR:0 NDS_setInst(%X, %X)\n",i,index);
 		return false;
+	}else if(instType[index]==2){//PSG
+		filePos=instAddress[index];
+		readTemp(4);
+		tempKey[0]=sdat[filePos++];
+		keySample[(i<<7)]=temp[0];
+		keyRoot[(i<<7)]=MIDI_FREQ[tempKey[0]];
+        keyRootVal[(i<<7)]=tempKey[0];
+		readTemp(4);
+		keyAttack[(i<<7)]=temp[0];
+		keyDecay[(i<<7)]=temp[1];
+		keySustain[(i<<7)]=temp[2];
+		keyRelease[(i<<7)]=temp[3];
+		temp[0]=sdat[filePos++];
+		keyPan[(i<<7)]=temp[0];
+        printf("%X 8-Bit! %X\n",i,keySample[(i<<7)]);
 	}else if(instType[index]<16){//single inst
 		filePos=instAddress[index];
 		readTemp(4);
@@ -764,7 +779,7 @@ char * NDS_loop(){
                                                 slotSustain[curSlot]=NDS_Cnv_Sust(keySustain[(i<<7)+slotNote[curSlot]]);
                                                 slotRelease[curSlot]=NDS_Cnv_Fall(keyRelease[(i<<7)+slotNote[curSlot]]);
                                                 slotPan[curSlot]=keyPan[(i<<7)+slotNote[curSlot]];
-                                            }else{
+                                            }else if(instType[chInstrument[i]]==1){
                                                 if(validInst[i]) validSample[curSlot]=NDS_setSample(curSlot,NDS_getSampleAddress(keyBank[(i<<7)],keySample[(i<<7)]));
                                                 slotPitch[curSlot]=keyRoot[(i<<7)];
                                                 curKeyRoot[curSlot]=FREQ_TABLE[(keyRootVal[(i<<7)]<<7)];
@@ -775,12 +790,33 @@ char * NDS_loop(){
                                                 slotSustain[curSlot]=NDS_Cnv_Sust(keySustain[(i<<7)]);
                                                 slotRelease[curSlot]=NDS_Cnv_Fall(keyRelease[(i<<7)]);
                                                 slotPan[curSlot]=keyPan[(i<<7)];
+                                            }else{//PSG
+                                                slotPitch[curSlot]=keyRoot[(i<<7)];
+                                                curKeyRoot[curSlot]=FREQ_TABLE[(keyRootVal[(i<<7)]<<7)];
+                                                slotAttack[curSlot]=NDS_Cnv_Attack(keyAttack[(i<<7)]);
+                                                slotDecay[curSlot]=NDS_Cnv_Fall(keyDecay[(i<<7)]);
+                                                slotSustain[curSlot]=NDS_Cnv_Sust(keySustain[(i<<7)]);
+                                                slotRelease[curSlot]=NDS_Cnv_Fall(keyRelease[(i<<7)]);
+                                                slotPan[curSlot]=keyPan[(i<<7)];
+                                                sampleFormat[curSlot]=3+keySample[(i<<7)];//store the PSG duty here
+                                                sampleLoops[curSlot]=true;
+                                                samplePitch[curSlot]=0x20B7;//This isn't divisible by 4, so we multiply the length of the 8-bit waveforms by 4
+                                                sampleLoop[curSlot]=0;
+                                                sampleLoopLength[curSlot]=32;//8*4=32
+                                                sampleEnd[curSlot]=32;//8*4=32
+                                                samplePos[curSlot]=0;
+                                                sampleDone[curSlot]=true;
+                                                sampleOutput[curSlot]=0;
+                                                validInst[i]=true;
+                                                validSample[curSlot]=true;
                                             }
                                             slotADSRState[curSlot]=0;
                                             slotADSRVol[curSlot]=-92544;
                                             max(slotPanL[curSlot]=chPanL[i]+PAN_TABLE[slotPan[curSlot]],-723);
                                             max(slotPanR[curSlot]=chPanR[i]+PAN_TABLE[127-slotPan[curSlot]],-723);
                                             if(validInst[i] && validSample[curSlot]) sampleDone[curSlot]=false;
+                                            samplePitchFill[i]=sampleRate;
+                                            slotPitchFill[i]=curKeyRoot[curSlot];
                                         }else{
                                             temp[0]=sdat[filePos++];
                                             varLength=3;
@@ -909,11 +945,15 @@ char * NDS_loop(){
                         readTemp(2);
                         samplePos[i]+=2;
                         sampleOutput[i]=temp[0]+(temp[1]<<8);
-                    }else{//8-bit PCM
+                    }else if(sampleFormat[i]==0){//8-bit PCM
                         filePos=sampleOffset[i] + samplePos[i];
                         temp[0]=sdat[filePos++];
                         samplePos[i]++;
                         sampleOutput[i]=(temp[0]<<8);
+                    }else{//PSG
+                        //sampleFormat[i] gets bit shifted twice, effectivly multiplying by 4
+                        (samplePos[i])<((sampleFormat[i]-2)<<2) ? sampleOutput[i]=0x7FFF : sampleOutput[i]=0x0000;
+                        samplePos[i]++;
                     }
                     
                     if(samplePos[i]>=sampleEnd[i]){
