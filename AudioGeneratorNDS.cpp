@@ -319,6 +319,7 @@ bool NDS_begin(int songID, int sRate)
 	swarArray=(swarArray+temp[0]);
 	swarArray+=infoBlock+4;
     printf("swarArray:%X\n",swarArray);
+	
 	for (int i=0; i<16; i++) {
 		timesLooped[i]=maxLoops;
 		chPointer[i]=0;
@@ -369,7 +370,7 @@ bool NDS_begin(int songID, int sRate)
 		//NDS_setSample(i,sampleOffset[i]);
 		chInstrument[i]=0;
 		validSample[i]=false;
-        validInst[i]=false;//NDS_setInst(i,chInstrument[i]);
+        validInst[i]=NDS_setInst(i,chInstrument[i]);
 	}
 
 	sseqIndex=songID;
