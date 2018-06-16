@@ -14,7 +14,9 @@ unsigned short NDS_Cnv_Vol(int db);
 unsigned long NDS_getSampleAddress(unsigned char bank,unsigned short inst);
 unsigned long NDS_getAddress(unsigned long addr);
 bool NDS_setInst(int i, unsigned char index);
+bool NDS_decInst(unsigned char index);
 bool NDS_setSample(int i, unsigned long address);
+int NDS_decSample(int freeSpace, unsigned long address);
 char * NDS_loop();
 bool NDS_stop();
 bool NDS_isRunning(){ return running;}
@@ -96,8 +98,7 @@ unsigned char chLoopTimes[16];//times left to loop
 unsigned long chLoopOffset[16];//offset to return to from loop end marker
 unsigned long chReturnOffset[16];//offset to return to from the call
 bool chInCall[16];//track hit a call command and did not hit return yet
-bool validInst[16];
-bool validSample[16];
+bool validInst[128];
 
 unsigned char slotAttack[16];
 unsigned short slotDecay[16];
@@ -148,6 +149,7 @@ char keyRootVal[16*0x80];//root key for each key
 unsigned long curKeyRoot[16];
 unsigned char keyBank[16*0x80];//for split key instruments
 unsigned short keySample[16*0x80];//for split key instruments
+unsigned short keySWAV[16*0x80];//for split key instruments
 unsigned char keyAttack[16*0x80];
 unsigned char keyDecay[16*0x80];
 unsigned char keySustain[16*0x80];
@@ -155,5 +157,9 @@ unsigned char keyRelease[16*0x80];
 unsigned char keyPan[16*0x80];
 
 signed short lastSample[2];
+
+int decSWAVFree;//position for free space
+unsigned long decSWAVPointer[0x80*0x80];
+signed short decSWAVBuffer[0x2000000];
 
 #include "AudioGeneratorNDS.cpp"

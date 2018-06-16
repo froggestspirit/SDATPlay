@@ -210,27 +210,81 @@ bool NDS_setInst(int i, unsigned char index){
 	}
 	return true;
 }
+
+bool NDS_decInst(unsigned char index){//decode samples to a buffer for faster playback (mostly for rasp-pi zero)
+    printf("Decoding Instrument %X, type: %X\n",index,instType[index]);
+	if(instType[index]==0){//blank
+		return false;
+	}else if(instType[index]==2){//PSG
+        filePos=instAddress[index];
+		readTemp(4);
+        decSWAVPointer[(index<<7)]=decSWAVFree;
+        decSWAVFree=NDS_decSample(decSWAVFree,0);
+	}else if(instType[index]<16){//single inst
+		filePos=instAddress[index];
+		readTemp(4);
+        decSWAVPointer[(index<<7)]=decSWAVFree;
+        decSWAVFree=NDS_decSample(decSWAVFree,NDS_getSampleAddress(temp[2],temp[0]+(temp[1]<<8)));
+	}else if(instType[index]==16){//range inst (like drumset)
+        filePos=instAddress[index];
+		readTempKey(2);
+		for(int keyi=tempKey[0]; keyi<=tempKey[1]; keyi++){
+			filePos=instAddress[index]+4+((keyi-tempKey[0])*12);
+			readTemp(4);
+            decSWAVPointer[(index<<7)+keyi]=decSWAVFree;
+            decSWAVFree=NDS_decSample(decSWAVFree,NDS_getSampleAddress(temp[2],temp[0]+(temp[1]<<8)));
+        }
+	}else if(instType[index]==17){//regional inst
+		filePos=instAddress[index];
+		readTempKey(8);
+		int key=0;
+		for(int keyi=0; keyi<8; keyi++){
+			if(key<=tempKey[keyi]){
+				filePos=instAddress[index]+10+(keyi*12);
+				readTemp(4);
+				decSWAVPointer[(index<<7)+key]=decSWAVFree;
+                decSWAVFree=NDS_decSample(decSWAVFree,NDS_getSampleAddress(temp[2],temp[0]+(temp[1]<<8)));
+				key++;
+			}
+            while(key<=tempKey[keyi]){
+				decSWAVPointer[(index<<7)+key]=decSWAVPointer[(index<<7)+(key-1)];
+				key++;
+			}
+		}
+	}else{
+		return false;
+	}
+	return true;
+}
+
 bool NDS_setSample(int i, unsigned long address){
-	if(address==0) return false;
-	filePos=address;
-	readTemp(4);
-	sampleFormat[i]=temp[0];
-	sampleLoops[i]=(temp[1]==1);
-	samplePitch[i]=temp[2]+(temp[3]<<8);
-	readTemp(4);
-	sampleLoop[i]=((temp[2]+(temp[3]<<8))<<2);
-	readTemp(4);
-	sampleLoopLength[i]=(temp[3]<<8);
-	sampleLoopLength[i]=((sampleLoopLength[i]+temp[2])<<8);
-	sampleLoopLength[i]=((sampleLoopLength[i]+temp[1])<<8);
-	sampleLoopLength[i]=((sampleLoopLength[i]+temp[0])<<2);
-	sampleEnd[i]=sampleLoop[i]+sampleLoopLength[i];
-	samplePos[i]=0;
-	sampleDone[i]=true;
-	sampleNibbleLow[i]=true;
-	sampleOutput[i]=0;
-	sampleOffset[i]=address+12;//skip the header
-	if(sampleFormat[i]==2){
+    if(address==0) return false;
+    filePos=address;
+    readTemp(4);
+    sampleFormat[i]=temp[0];
+    sampleLoops[i]=(temp[1]==1);
+    samplePitch[i]=temp[2]+(temp[3]<<8);
+    readTemp(4);
+    sampleLoop[i]=((temp[2]+(temp[3]<<8))<<2);
+    readTemp(4);
+    sampleLoopLength[i]=(temp[3]<<8);
+    sampleLoopLength[i]=((sampleLoopLength[i]+temp[2])<<8);
+    sampleLoopLength[i]=((sampleLoopLength[i]+temp[1])<<8);
+    sampleLoopLength[i]=((sampleLoopLength[i]+temp[0])<<2);
+    sampleEnd[i]=sampleLoop[i]+sampleLoopLength[i];
+    samplePos[i]=0;
+    sampleDone[i]=true;
+    sampleNibbleLow[i]=true;
+    sampleOutput[i]=0;
+    sampleOffset[i]=address+12;//skip the header
+	if(sampleFormat[i]==1){
+        sampleEnd[i]/=2;
+        sampleLoop[i]/=2;
+        sampleLoopLength[i]/=2;
+    }else if(sampleFormat[i]==2){
+        sampleEnd[i]*=2;
+        sampleLoop[i]*=2;
+        sampleLoopLength[i]*=2;
 		readTemp(4);
 		sampleStepIndexStart[i]=(temp[2]&0x7F);
 		samplePredictorStart[i]=(temp[0]+(temp[1]<<8));
@@ -248,6 +302,115 @@ bool NDS_setSample(int i, unsigned long address){
 		return false;
 	}
 	return true;
+}
+
+int NDS_decSample(int freeSpace, unsigned long address){
+	if(address==0){//PSG
+        sampleFormat[0]=3+temp[0];//store the PSG duty here
+        sampleLoops[0]=true;
+        samplePitch[0]=0x20B7;//This isn't divisible by 4, so we multiply the length of the 8-bit waveforms by 4
+        sampleLoop[0]=0;
+        sampleLoopLength[0]=32;//8*4=32
+        sampleEnd[0]=32;//8*4=32
+        samplePos[0]=0;
+        sampleDone[0]=true;
+        sampleOutput[0]=0;
+    }else{//not PSG
+        filePos=address;
+        readTemp(4);
+        sampleFormat[0]=temp[0];
+        sampleLoops[0]=(temp[1]==1);
+        samplePitch[0]=temp[2]+(temp[3]<<8);
+        readTemp(4);
+        sampleLoop[0]=((temp[2]+(temp[3]<<8))<<2);
+        readTemp(4);
+        sampleLoopLength[0]=(temp[3]<<8);
+        sampleLoopLength[0]=((sampleLoopLength[0]+temp[2])<<8);
+        sampleLoopLength[0]=((sampleLoopLength[0]+temp[1])<<8);
+        sampleLoopLength[0]=((sampleLoopLength[0]+temp[0])<<2);
+        sampleEnd[0]=sampleLoop[0]+sampleLoopLength[0];
+        samplePos[0]=0;
+        sampleDone[0]=true;
+        sampleNibbleLow[0]=true;
+        sampleOutput[0]=0;
+        sampleOffset[0]=address+12;//skip the header
+    }
+	if(sampleFormat[0]==1){
+        sampleEnd[0]/=2;
+        sampleLoop[0]/=2;
+        sampleLoopLength[0]/=2;
+    }else if(sampleFormat[0]==2){
+        sampleEnd[0]*=2;
+        sampleLoop[0]*=2;
+        sampleLoopLength[0]*=2;
+		readTemp(4);
+		sampleStepIndexStart[0]=(temp[2]&0x7F);
+		samplePredictorStart[0]=(temp[0]+(temp[1]<<8));
+		sampleStepStart[0]=0;
+		sampleStepIndex[0]=sampleStepIndexStart[0];
+		samplePredictor[0]=samplePredictorStart[0];
+		sampleOutput[0]=samplePredictor[0];
+		sampleStep[0]=sampleStepStart[0];
+		sampleStepIndexLoop[0]=sampleStepIndex[0];
+		samplePredictorLoop[0]=samplePredictor[0];
+		sampleStepLoop[0]=sampleStep[0];
+		sampleOffset[0]+=4;//skip the ima-adpcm header
+	}
+	if(freeSpace+sampleEnd[0]>=0x2000000){
+        printf("Out of sample buffer");
+        return false;
+    }
+	for(int sampI=0; sampI<sampleEnd[0]; sampI++){
+        if(sampleFormat[0]==2){///IMA-ADPCM
+            if(sampleNibbleLow[0]){
+                filePos=sampleOffset[0] + samplePos[0];
+                temp[0]=sdat[filePos++];
+                tempNibble[0]=temp[0];
+                //NDS_decodeADPCMSample(i,(temp[0]&0x0F));
+                temp[1] = temp[0] & 7;//delta
+                /*sampleStep[i]=ADPCM_TABLE[sampleStepIndex[i]];
+                sampleDiff = sampleStep[i] >> 3;
+                if (temp[1] & 4) sampleDiff += sampleStep[i];
+                if (temp[1] & 2) sampleDiff += (sampleStep[i] >> 1);
+                if (temp[1] & 1) sampleDiff += (sampleStep[i] >> 2);*/
+                sampleDiff = ADPCM_TABLE[sampleStepIndex[0]+(temp[1]<<7)];
+                if (temp[0]&8){samplePredictor[0]=max(samplePredictor[0]-sampleDiff,-0x7FFF);}
+                else{samplePredictor[0]=min(samplePredictor[0]+sampleDiff,0x7FFF);}
+                sampleStepIndex[0]=max(min(sampleStepIndex[0]+INDEX_TABLE[temp[1]],88),0);
+                sampleNibbleLow[0]=false;
+            }else{
+                //NDS_decodeADPCMSample(i,tempNibble[i]);
+                temp[1] = tempNibble[0] & 0x70;//delta
+                /*sampleStep[i]=ADPCM_TABLE[sampleStepIndex[i]];
+                sampleDiff = sampleStep[i] >> 3;
+                if (temp[1] & 4) sampleDiff += sampleStep[i];
+                if (temp[1] & 2) sampleDiff += (sampleStep[i] >> 1);
+                if (temp[1] & 1) sampleDiff += (sampleStep[i] >> 2);*/
+                sampleDiff = ADPCM_TABLE[sampleStepIndex[0]+(temp[1]<<3)];
+                if (tempNibble[0]&0x80){samplePredictor[0]=max(samplePredictor[0]-sampleDiff,-0x7FFF);}
+                else{samplePredictor[0]=min(samplePredictor[0]+sampleDiff,0x7FFF);}
+                sampleStepIndex[0]=max(min(sampleStepIndex[0]+INDEX_TABLE[temp[1]>>4],88),0);
+                sampleNibbleLow[0]=true;
+                samplePos[0]++;
+            }
+            decSWAVBuffer[freeSpace+sampI]=samplePredictor[0];
+        }else if(sampleFormat[0]==1){//16-bit PCM
+            filePos=sampleOffset[0] + samplePos[0];
+            readTemp(2);
+            samplePos[0]+=2;
+            decSWAVBuffer[freeSpace+sampI]=temp[0]+(temp[1]<<8);
+        }else if(sampleFormat[0]==0){//8-bit PCM
+            filePos=sampleOffset[0] + samplePos[0];
+            temp[0]=sdat[filePos++];
+            samplePos[0]++;
+            decSWAVBuffer[freeSpace+sampI]=(temp[0]<<8);
+        }else{
+            //sampleFormat[i] gets bit shifted twice, effectivly multiplying by 4
+            (samplePos[0])<((sampleFormat[0]-2)<<2) ? decSWAVBuffer[freeSpace+sampI]=0x7FFF : decSWAVBuffer[freeSpace+sampI]=0x0000;
+            samplePos[0]++;
+        }
+    }
+	return freeSpace+sampleEnd[0];
 }
 
 bool NDS_begin(int songID, int sRate)
@@ -369,8 +532,6 @@ bool NDS_begin(int songID, int sRate)
 		samplePitchFill[i]=0;
 		//NDS_setSample(i,sampleOffset[i]);
 		chInstrument[i]=0;
-		validSample[i]=false;
-        validInst[i]=NDS_setInst(i,chInstrument[i]);
 	}
 
 	sseqIndex=songID;
@@ -400,17 +561,20 @@ bool NDS_begin(int songID, int sRate)
 	if(temp32>128){//bounds check
 		temp32=128;
 	}
-	for(int i=0; i<temp32; i++){
+	int numInsts=temp32;
+    decSWAVFree=0;
+	for(int i=0; i<numInsts; i++){
 		readTemp(4);
 		instAddress[i]=(temp[3]<<8);
 		instAddress[i]=((instAddress[i]+temp[2])<<8);
 		instAddress[i]=(instAddress[i]+temp[1]);
 		instAddress[i]+=sbnkPointer;
 		instType[i]=temp[0];
-	}
-	
+    }
+    for(int i=0; i<numInsts; i++) validInst[i]=NDS_decInst(i);
+    
+	printf("Inst Buffer:0x%X/0x4000000\n",(decSWAVFree*2));
 	//read swar header
-	
 	chActive[0]=true;
     
     printf("%X chPointer 0:%X\n",chActive[0],chPointer[0]);
@@ -521,9 +685,9 @@ char * NDS_loop(){
                                     readTemp(4);
                                     if(chInstrument[i]!=(temp[0]&0x7F)){
                                         chInstrument[i]=temp[0]&0x7F;
-                                        validInst[i]=NDS_setInst(i,chInstrument[i]);
+                                        if(validInst[chInstrument[i]]) NDS_setInst(i,chInstrument[i]);
                                         //if(validInst[i]) printf("%X Instrument: %X Set %X\n",i,chInstrument[i],filePos-4);
-                                        if(!validInst[i]) printf("%X Invalid Instrument: %X? %X\n",i,chInstrument[i],filePos-4);
+                                        if(!validInst[chInstrument[i]]) printf("%X Invalid Instrument: %X? %X\n",i,chInstrument[i],filePos-4);
                                     }
                                     varLength=2;
                                     for(int j=0; j<3; j++){
@@ -769,9 +933,12 @@ char * NDS_loop(){
                                                 }
                                             }
                                             if(instType[chInstrument[i]]>=16){
-                                                if(validInst[i]) validSample[curSlot]=NDS_setSample(curSlot,NDS_getSampleAddress(keyBank[(i<<7)+slotNote[curSlot]],keySample[(i<<7)+slotNote[curSlot]]));
-                                                if(!validInst[i]) printf("%X Invalid Instrument? %X\n",i,filePos-4);
-                                                if(!validSample[curSlot]) printf("%X Invalid Sample? %X\n",i,filePos-4);
+                                                if(validInst[chInstrument[i]]){
+                                                    NDS_setSample(curSlot,NDS_getSampleAddress(keyBank[(i<<7)+slotNote[curSlot]],keySample[(i<<7)+slotNote[curSlot]]));
+                                                    sampleOffset[curSlot]=decSWAVPointer[(chInstrument[i]<<7)+slotNote[curSlot]];
+                                                }
+                                                if(!validInst[chInstrument[i]]) printf("%X Invalid Instrument? %X\n",i,filePos-4);
+                                                //if(!validSample[curSlot]) printf("%X Invalid Sample? %X\n",i,filePos-4);
                                                 slotPitch[curSlot]=keyRoot[(i<<7)+slotNote[curSlot]];
                                                 curKeyRoot[curSlot]=FREQ_TABLE[(keyRootVal[(i<<7)+slotNote[curSlot]]<<7)];
                                                 slotAttack[curSlot]=NDS_Cnv_Attack(keyAttack[(i<<7)+slotNote[curSlot]]);
@@ -780,17 +947,21 @@ char * NDS_loop(){
                                                 slotRelease[curSlot]=NDS_Cnv_Fall(keyRelease[(i<<7)+slotNote[curSlot]]);
                                                 slotPan[curSlot]=keyPan[(i<<7)+slotNote[curSlot]];
                                             }else if(instType[chInstrument[i]]==1){
-                                                if(validInst[i]) validSample[curSlot]=NDS_setSample(curSlot,NDS_getSampleAddress(keyBank[(i<<7)],keySample[(i<<7)]));
+                                                if(validInst[chInstrument[i]]){
+                                                    NDS_setSample(curSlot,NDS_getSampleAddress(keyBank[(i<<7)],keySample[(i<<7)]));
+                                                    sampleOffset[curSlot]=decSWAVPointer[(chInstrument[i]<<7)];
+                                                }
                                                 slotPitch[curSlot]=keyRoot[(i<<7)];
                                                 curKeyRoot[curSlot]=FREQ_TABLE[(keyRootVal[(i<<7)]<<7)];
-                                                if(!validInst[i]) printf("%X Invalid Instrument? %X\n",i,filePos-4);
-                                                if(!validSample[curSlot]) printf("%X Invalid Sample? %X\n",i,filePos-4);
+                                                if(!validInst[chInstrument[i]]) printf("%X Invalid Instrument? %X\n",i,filePos-4);
+                                                //if(!validSample[curSlot]) printf("%X Invalid Sample? %X\n",i,filePos-4);
                                                 slotAttack[curSlot]=NDS_Cnv_Attack(keyAttack[(i<<7)]);
                                                 slotDecay[curSlot]=NDS_Cnv_Fall(keyDecay[(i<<7)]);
                                                 slotSustain[curSlot]=NDS_Cnv_Sust(keySustain[(i<<7)]);
                                                 slotRelease[curSlot]=NDS_Cnv_Fall(keyRelease[(i<<7)]);
                                                 slotPan[curSlot]=keyPan[(i<<7)];
                                             }else{//PSG
+                                                sampleOffset[curSlot]=decSWAVPointer[(chInstrument[i]<<7)];
                                                 slotPitch[curSlot]=keyRoot[(i<<7)];
                                                 curKeyRoot[curSlot]=FREQ_TABLE[(keyRootVal[(i<<7)]<<7)];
                                                 slotAttack[curSlot]=NDS_Cnv_Attack(keyAttack[(i<<7)]);
@@ -807,14 +978,12 @@ char * NDS_loop(){
                                                 samplePos[curSlot]=0;
                                                 sampleDone[curSlot]=true;
                                                 sampleOutput[curSlot]=0;
-                                                validInst[i]=true;
-                                                validSample[curSlot]=true;
                                             }
                                             slotADSRState[curSlot]=0;
                                             slotADSRVol[curSlot]=-92544;
                                             max(slotPanL[curSlot]=chPanL[i]+PAN_TABLE[slotPan[curSlot]],-723);
                                             max(slotPanR[curSlot]=chPanR[i]+PAN_TABLE[127-slotPan[curSlot]],-723);
-                                            if(validInst[i] && validSample[curSlot]) sampleDone[curSlot]=false;
+                                            if(validInst[chInstrument[i]]) sampleDone[curSlot]=false;
                                             samplePitchFill[i]=sampleRate;
                                             slotPitchFill[i]=curKeyRoot[curSlot];
                                         }else{
@@ -903,18 +1072,15 @@ char * NDS_loop(){
                 samplePitchFill[i]+=samplePitch[i];
                 while(samplePitchFill[i]>=sampleRate){
                     samplePitchFill[i]-=sampleRate;
-                    if(sampleFormat[i]==2){///IMA-ADPCM
+                    sampleOutput[i]=decSWAVBuffer[samplePos[i]+sampleOffset[i]];
+                    samplePos[i]++;
+                    /*if(sampleFormat[i]==2){///IMA-ADPCM
                         if(sampleNibbleLow[i]){
                             filePos=sampleOffset[i] + samplePos[i];
                             temp[0]=sdat[filePos++];
                             tempNibble[i]=temp[0];
                             //NDS_decodeADPCMSample(i,(temp[0]&0x0F));
                             temp[1] = temp[0] & 7;//delta
-                            /*sampleStep[i]=ADPCM_TABLE[sampleStepIndex[i]];
-                            sampleDiff = sampleStep[i] >> 3;
-                            if (temp[1] & 4) sampleDiff += sampleStep[i];
-                            if (temp[1] & 2) sampleDiff += (sampleStep[i] >> 1);
-                            if (temp[1] & 1) sampleDiff += (sampleStep[i] >> 2);*/
                             sampleDiff = ADPCM_TABLE[sampleStepIndex[i]+(temp[1]<<7)];
                             if (temp[0]&8){samplePredictor[i]=max(samplePredictor[i]-sampleDiff,-0x7FFF);}
                             else{samplePredictor[i]=min(samplePredictor[i]+sampleDiff,0x7FFF);}
@@ -923,11 +1089,6 @@ char * NDS_loop(){
                         }else{
                             //NDS_decodeADPCMSample(i,tempNibble[i]);
                             temp[1] = tempNibble[i] & 0x70;//delta
-                            /*sampleStep[i]=ADPCM_TABLE[sampleStepIndex[i]];
-                            sampleDiff = sampleStep[i] >> 3;
-                            if (temp[1] & 4) sampleDiff += sampleStep[i];
-                            if (temp[1] & 2) sampleDiff += (sampleStep[i] >> 1);
-                            if (temp[1] & 1) sampleDiff += (sampleStep[i] >> 2);*/
                             sampleDiff = ADPCM_TABLE[sampleStepIndex[i]+(temp[1]<<3)];
                             if (tempNibble[i]&0x80){samplePredictor[i]=max(samplePredictor[i]-sampleDiff,-0x7FFF);}
                             else{samplePredictor[i]=min(samplePredictor[i]+sampleDiff,0x7FFF);}
@@ -954,13 +1115,13 @@ char * NDS_loop(){
                         //sampleFormat[i] gets bit shifted twice, effectivly multiplying by 4
                         (samplePos[i])<((sampleFormat[i]-2)<<2) ? sampleOutput[i]=0x7FFF : sampleOutput[i]=0x0000;
                         samplePos[i]++;
-                    }
+                    }*/
                     
                     if(samplePos[i]>=sampleEnd[i]){
                         if(sampleLoops[i]){
                             samplePos[i]=sampleLoop[i];
-                            sampleStepIndex[i]=sampleStepIndexLoop[i];
-                            samplePredictor[i]=samplePredictorLoop[i];
+                            //sampleStepIndex[i]=sampleStepIndexLoop[i];
+                            //samplePredictor[i]=samplePredictorLoop[i];
                         }else{
                             sampleDone[i]=true;
                             slotFree[i]=0;
