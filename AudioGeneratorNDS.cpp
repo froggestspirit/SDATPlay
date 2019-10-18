@@ -510,7 +510,7 @@ char * NDS_loop(){
 	if (!running) return 0; // Nothing to do here!
     if(paused) return 0;
     c+=192;
-    if(c>=sampleRate){//player update
+    while(c>=sampleRate){//player update
         c-=sampleRate;
         seqFrame=true;
         if(fadeVol<0){
@@ -519,7 +519,7 @@ char * NDS_loop(){
             if (!running) return 0;
         }
         tempoFill+=sseqTempo;
-        if(tempoFill>=240){
+        while(tempoFill>=240){
             tempoFill-=240;
             for(int i=0; i<16; i++){
                 if(chActive[i]){
