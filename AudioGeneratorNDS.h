@@ -14,14 +14,14 @@ unsigned long NDS_getSampleAddress(unsigned char bank,unsigned short inst);
 unsigned long NDS_getAddress(unsigned long addr);
 bool NDS_decInst(int index);
 int NDS_decSample(int ID, int freeSpace, unsigned long address);
-char * NDS_loop();
+float * NDS_loop();
 bool NDS_stop();
 bool NDS_isRunning(){ return running;}
 void buttonLoop();
 void buttonPause();
 void buttonNext();
 void buttonShuffle();
-int sampleRate;
+float sampleRate;
 
 bool delayHit;
 bool seqFrame;
@@ -97,10 +97,10 @@ unsigned long chReturnOffset[16];//offset to return to from the call
 bool chInCall[16];//track hit a call command and did not hit return yet
 bool validInst[128];
 
-unsigned char slotAttack[16];
-unsigned short slotDecay[16];
-signed long slotSustain[16];
-unsigned short slotRelease[16];
+float slotAttack[16];
+float slotDecay[16];
+float slotSustain[16];
+float slotRelease[16];
 unsigned char slotPan[16];
 signed short slotPanL[16];
 signed short slotPanR[16];
@@ -110,22 +110,22 @@ unsigned char slotADSRState[16];
 unsigned long instAddress[128];//address of the instrument definition for instruments 0-127
 unsigned char instType[128];
 
-signed short volModL[16];
-signed short volModR[16];
-int mixer[2];//pre mixer
-char soundOut[6];//final output
+float volModL[16];
+float volModR[16];
+float mixer[2];//pre mixer
+float soundOut[2];//final output
 bool chActive[16];//is the channel on
-unsigned long slotPitch[16];
-unsigned long slotPitchFill[16];
+float slotPitch[16];
+float slotPitchFill[16];
 unsigned short slotSampleID[16];//(channel instrument<<7)+note
-unsigned long samplePitchFill[16];
-unsigned long samplePos[16];//current position in the sample
+float samplePitchFill[16];
+float samplePos[16];//current position in the sample
 
-unsigned long samplePitch[0x80*0x80];
+float samplePitch[0x80*0x80];
 unsigned long sampleOffset[0x80*0x80];//offset of the current sample
-unsigned long sampleEnd[0x80*0x80];//the end of the sample
-unsigned long sampleLoop[0x80*0x80];//loop point
-unsigned long sampleLoopLength[0x80*0x80];//length of loop point to end
+float sampleEnd[0x80*0x80];//the end of the sample
+float sampleLoop[0x80*0x80];//loop point
+unsigned int sampleLoopLength[0x80*0x80];//length of loop point to end
 unsigned char sampleFormat[0x80*0x80];//format of the sample
 bool sampleLoops[0x80*0x80];//does the sample loop
 
@@ -136,10 +136,10 @@ signed char sampleStepIndex;
 signed short sampleDiff;
 signed short samplePredictor;
 signed short sampleStep;
-signed short sampleOutput[16];
+float sampleOutput[16];
 unsigned long keyRoot[0x80*0x80];//root key for each key (freq)
 char keyRootVal[0x80*0x80];//root key for each key
-unsigned long curKeyRoot[16];
+float curKeyRoot[16];
 unsigned char keyBank[0x80*0x80];//for split key instruments
 unsigned short keySample[0x80*0x80];//for split key instruments
 unsigned short keySWAV[0x80*0x80];//for split key instruments
@@ -149,10 +149,10 @@ unsigned char keySustain[0x80*0x80];
 unsigned char keyRelease[0x80*0x80];
 unsigned char keyPan[0x80*0x80];
 
-signed short lastSample[2];
+float lastSample[2];
 
 int decSWAVFree;//position for free space
 unsigned long decSWAVPointer[0x80*0x80];
-signed short decSWAVBuffer[0x2000000];
+float decSWAVBuffer[0x2000000];
 
 #include "AudioGeneratorNDS.cpp"

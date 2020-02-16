@@ -1,4 +1,4 @@
-//SDAT Player 1.0 FroggestSpirit
+//SDAT Player 1.3 FroggestSpirit
 
 
 void readTemp(int bytes){
@@ -291,27 +291,27 @@ int NDS_decSample(int ID, int freeSpace, unsigned long address){
                 sampleNibbleLow=true;
                 samplePos[0]++;
             }
-            decSWAVBuffer[freeSpace+sampI]=samplePredictor;
+            decSWAVBuffer[freeSpace+sampI]=samplePredictor/float(0x080000);
         }else if(sampleFormat[ID]==1){//16-bit PCM
             filePos=sampleOffset[ID] + samplePos[0];
             readTemp(2);
             samplePos[0]+=2;
-            decSWAVBuffer[freeSpace+sampI]=temp[0]+(temp[1]<<8);
+            decSWAVBuffer[freeSpace+sampI]=(temp[0]+(temp[1]<<8))/float(0x080000);
         }else if(sampleFormat[ID]==0){//8-bit PCM
             filePos=sampleOffset[ID] + samplePos[0];
             temp[0]=sdat[filePos++];
             samplePos[0]++;
-            decSWAVBuffer[freeSpace+sampI]=(temp[0]<<8);
+            decSWAVBuffer[freeSpace+sampI]=(temp[0]<<8)/float(0x080000);
         }else{
             //sampleFormat[i] gets bit shifted twice, effectivly multiplying by 4
-            (samplePos[0])<((sampleFormat[ID]-2)<<2) ? decSWAVBuffer[freeSpace+sampI]=0x7FFF : decSWAVBuffer[freeSpace+sampI]=0x0000;
+            (samplePos[0])<((sampleFormat[ID]-2)<<2) ? decSWAVBuffer[freeSpace+sampI]=0x7FFF/float(0x080000) : decSWAVBuffer[freeSpace+sampI]=0x0000/float(0x080000);
             samplePos[0]++;
         }
     }
-	return freeSpace+sampleEnd[ID];
+	return freeSpace+(sampleEnd[ID]);
 }
 
-bool NDS_begin(int songID, int sRate)
+bool NDS_begin(int songID, int sRate, bool inf)
 {
     running=false;
 	sampleRate=sRate;
@@ -324,6 +324,7 @@ bool NDS_begin(int songID, int sRate)
 	sseqVol=0x7F;
 	fadeVol=0;
 	maxLoops=2;
+	infLoop=inf;
 	mixer[0]=0;
 	mixer[1]=0;
 	soundOut[0]=0;
@@ -492,7 +493,6 @@ bool NDS_begin(int songID, int sRate)
     printf("%X chPointer D:%X\n",chActive[13],chPointer[13]);
     printf("%X chPointer E:%X\n",chActive[14],chPointer[14]);
     printf("%X chPointer F:%X\n",chActive[15],chPointer[15]);
-    
 	running = true;
 	return true;
 }
@@ -503,12 +503,11 @@ bool NDS_stop()
 	return true;
 }
 
-char * NDS_loop(){
+float * NDS_loop(){
 	seqFrame=false;
 	static int c = 0;
 //sample processing
-	if (!running) return 0; // Nothing to do here!
-    if(paused) return 0;
+        if (!running) return 0; // Nothing to do here!
     c+=192;
     while(c>=sampleRate){//player update
         c-=sampleRate;
@@ -535,9 +534,8 @@ char * NDS_loop(){
                                     chPointer[i]+=3;
                                 break;
                                 case 0x93: //Track Start
-                                    printf("%X Undefined Instruction 0x93 at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0x93 at: %X\n",i,filePos-1);
                                     readTemp(4);
-                                    
                                     chPointer[i]+=5;
                                 break;
                                 case 0x80: //Rest
@@ -562,7 +560,7 @@ char * NDS_loop(){
                                         chInstrument[i]=temp[0]&0x7F;
                                         //if(validInst[chInstrument[i]]) NDS_setInst(i,chInstrument[i]);
                                         //if(validInst[i]) printf("%X Instrument: %X Set %X\n",i,chInstrument[i],filePos-4);
-                                        if(!validInst[chInstrument[i]]) printf("%X Invalid Instrument: %X? %X\n",i,chInstrument[i],filePos-4);
+                                        //if(!validInst[chInstrument[i]]) printf("%X Invalid Instrument: %X? %X\n",i,chInstrument[i],filePos-4);
                                     }
                                     varLength=2;
                                     for(int j=0; j<3; j++){
@@ -609,13 +607,13 @@ char * NDS_loop(){
                                     chPointer[i]+=2;
                                 break;
                                 case 0xC2: //Master Volume
-                                    printf("%X Undefined Instruction 0xC2 at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0xC2 at: %X\n",i,filePos-1);
                                     temp[0]=sdat[filePos++];
                                     sseqVol=temp[0];
                                     chPointer[i]+=2;
                                 break;
                                 case 0xC3: //Transpose
-                                    printf("%X Undefined Instruction 0xC3 at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0xC3 at: %X\n",i,filePos-1);
                                     temp[0]=sdat[filePos++];
                                     chTranspose[i]=temp[0];
                                     chPointer[i]+=2;
@@ -635,85 +633,85 @@ char * NDS_loop(){
                                     if(chPitchBend[i]<=128) chPitchBendCur[i]=(chPitchBend[i]*chPitchBendRange[i]);
                                 break;
                                 case 0xC6: //Track Priority
-                                    printf("%X Undefined Instruction 0xC6 at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0xC6 at: %X\n",i,filePos-1);
                                     temp[0]=sdat[filePos++];
                                     chPriority[i]=temp[0];
                                     chPointer[i]+=2;
                                 break;
                                 case 0xC7: //Poly/Mono
-                                    printf("%X Undefined Instruction 0xC7 at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0xC7 at: %X\n",i,filePos-1);
                                     temp[0]=sdat[filePos++];
                                     chPolyMono[i]=temp[0];
                                     chPointer[i]+=2;
                                 break;
                                 case 0xC8: //Tie (?)
-                                    printf("%X Undefined Instruction 0xC8 at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0xC8 at: %X\n",i,filePos-1);
                                     temp[0]=sdat[filePos++];
                                     chTie[i]=temp[0];
                                     chPointer[i]+=2;
                                 break;
                                 case 0xC9: //Port Control
-                                    printf("%X Undefined Instruction 0xC9 at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0xC9 at: %X\n",i,filePos-1);
                                     temp[0]=sdat[filePos++];
                                     chPort[i]=temp[0];
                                     chPointer[i]+=2;
                                 break;
                                 case 0xCA: //Mod Depth
-                                    printf("%X Undefined Instruction 0xCA at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0xCA at: %X\n",i,filePos-1);
                                     temp[0]=sdat[filePos++];
                                     chModDepth[i]=temp[0];
                                     chPointer[i]+=2;
                                 break;
                                 case 0xCB: //Mod Speed
-                                    printf("%X Undefined Instruction 0xCB at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0xCB at: %X\n",i,filePos-1);
                                     temp[0]=sdat[filePos++];
                                     chModSpeed[i]=temp[0];
                                     chPointer[i]+=2;
                                 break;
                                 case 0xCC: //Mod Type
-                                    printf("%X Undefined Instruction 0xCC at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0xCC at: %X\n",i,filePos-1);
                                     temp[0]=sdat[filePos++];
                                     chModType[i]=temp[0];
                                     chPointer[i]+=2;
                                 break;
                                 case 0xCD: //Mod Range
-                                    printf("%X Undefined Instruction 0xCD at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0xCD at: %X\n",i,filePos-1);
                                     temp[0]=sdat[filePos++];
                                     chModRange[i]=temp[0];
                                     chPointer[i]+=2;
                                 break;
                                 case 0xCE: //Port On/Off
-                                    printf("%X Undefined Instruction 0xCE at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0xCE at: %X\n",i,filePos-1);
                                     temp[0]=sdat[filePos++];
                                     chPortOn[i]=temp[0];
                                     chPointer[i]+=2;
                                 break;
                                 case 0xCF: //Port Time
-                                    printf("%X Undefined Instruction 0xCF at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0xCF at: %X\n",i,filePos-1);
                                     temp[0]=sdat[filePos++];
                                     chPortTime[i]=temp[0];
                                     chPointer[i]+=2;
                                 break;
                                 case 0xD0: //Attack Rate
-                                    printf("%X Undefined Instruction 0xD0 at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0xD0 at: %X\n",i,filePos-1);
                                     temp[0]=sdat[filePos++];
                                     chAttack[i]=temp[0];
                                     chPointer[i]+=2;
                                 break;
                                 case 0xD1: //Decay Rate
-                                    printf("%X Undefined Instruction 0xD1 at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0xD1 at: %X\n",i,filePos-1);
                                     temp[0]=sdat[filePos++];
                                     chDecay[i]=temp[0];
                                     chPointer[i]+=2;
                                 break;
                                 case 0xD2: //Sustain Rate
-                                    printf("%X Undefined Instruction 0xD2 at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0xD2 at: %X\n",i,filePos-1);
                                     temp[0]=sdat[filePos++];
                                     chSustain[i]=temp[0];
                                     chPointer[i]+=2;
                                 break;
                                 case 0xD3: //Release Rate
-                                    printf("%X Undefined Instruction 0xD3 at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0xD3 at: %X\n",i,filePos-1);
                                     temp[0]=sdat[filePos++];
                                     chRelease[i]=temp[0];
                                     chPointer[i]+=2;
@@ -733,19 +731,17 @@ char * NDS_loop(){
                                     }
                                 break;
                                 case 0xD5: //Expression
-                                    printf("%X Undefined Instruction 0xD5 at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0xD5 at: %X\n",i,filePos-1);
                                     temp[0]=sdat[filePos++];
-                                    
                                     chPointer[i]+=2;
                                 break;
                                 case 0xD6: //Print Variable
-                                    printf("%X Undefined Instruction 0xD6 at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0xD6 at: %X\n",i,filePos-1);
                                     temp[0]=sdat[filePos++];
-                                    
                                     chPointer[i]+=2;
                                 break;
                                 case 0xE0: //Mod Delay
-                                    printf("%X Undefined Instruction 0xE0 at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0xE0 at: %X\n",i,filePos-1);
                                     readTemp(2);
                                     chModDelay[i]=(temp[1]<<8)+temp[0];
                                     chPointer[i]+=3;
@@ -756,9 +752,8 @@ char * NDS_loop(){
                                     chPointer[i]+=3;
                                 break;
                                 case 0xE3: //Sweep Pitch
-                                    printf("%X Undefined Instruction 0xE3 at: %X\n",i,filePos-1);
+                                    //printf("%X Undefined Instruction 0xE3 at: %X\n",i,filePos-1);
                                     readTemp(2);
-                                    
                                     chPointer[i]+=3;
                                 break;
                                 case 0xFF: //End of Track
@@ -767,7 +762,7 @@ char * NDS_loop(){
                                     timesLooped[i]=maxLoops;
                                     loopi=0;
                                     while(timesLooped[loopi]>=maxLoops && loopi<16) loopi++;
-                                    if(loopi==16) fadeVol=-722;
+                                    if(loopi==16) running=false;
                                 break;
                                 default: //
                                     if(temp[0]<0x80){//Note on
@@ -817,7 +812,7 @@ char * NDS_loop(){
                                                     slotSustain[curSlot]=NDS_Cnv_Sust(keySustain[slotSampleID[curSlot]]);
                                                     slotRelease[curSlot]=NDS_Cnv_Fall(keyRelease[slotSampleID[curSlot]]);
                                                     slotPan[curSlot]=keyPan[slotSampleID[curSlot]];
-                                                }else printf("%X Invalid Instrument? %X\n",i,filePos-4);
+                                                }//else printf("%X Invalid Instrument? %X\n",i,filePos-4);
                                             }else if(instType[chInstrument[i]]==1){
                                                 if(validInst[chInstrument[i]]){
                                                     slotSampleID[curSlot]=(chInstrument[i]<<7);
@@ -829,7 +824,7 @@ char * NDS_loop(){
                                                     slotSustain[curSlot]=NDS_Cnv_Sust(keySustain[slotSampleID[curSlot]]);
                                                     slotRelease[curSlot]=NDS_Cnv_Fall(keyRelease[slotSampleID[curSlot]]);
                                                     slotPan[curSlot]=keyPan[slotSampleID[curSlot]];
-                                                }else printf("%X Invalid Instrument? %X\n",i,filePos-4);
+                                                }//else printf("%X Invalid Instrument? %X\n",i,filePos-4);
                                             }else{//PSG
                                                 slotSampleID[curSlot]=(chInstrument[i]<<7);
                                                 sampleOffset[curSlot]=decSWAVPointer[slotSampleID[curSlot]];
@@ -866,11 +861,11 @@ char * NDS_loop(){
                                         chPointer[i]+=varLength;
                                         //if(i==0) printf("Note:%X Length:%X\n",slotNote[curSlot],slotNoteLen[curSlot]);
                                     }else if(temp[0]>=0xA0 && temp[0]<0xC0){//Arithmetic operations
-                                        printf("%X Undefined Instruction 0x%X at: %X\n",temp[0],filePos-1);
+                                        //printf("%X Undefined Instruction 0x%X at: %X\n",temp[0],filePos-1);
                                         running=false;
                                         delayHit=true;
                                     }else{
-                                        printf("Illegal Instruction 0x%X at: %X\n",temp[0],filePos-1);
+                                        //printf("Illegal Instruction 0x%X at: %X\n",temp[0],filePos-1);
                                         running=false;
                                         delayHit=true;
                                     }
@@ -881,7 +876,7 @@ char * NDS_loop(){
                     if(chDelay[i]>0) chDelay[i]-=1;//change this
                 }
             }
-            for(int i=0; i<16; i++){                
+            for(int i=0; i<16; i++){
                 if(slotNoteLen[i]>0){
                     slotNoteLen[i]-=1;//change this
                 }else if(slotADSRState[i]<3){
@@ -892,11 +887,10 @@ char * NDS_loop(){
             }
         }
         for(int i=0; i<16; i++){
-            
             switch(slotADSRState[i]){
                 case 0:
                     slotADSRVol[i]=((slotADSRVol[i]*slotAttack[i])/255);
-                    if(slotADSRVol[i]<0) break; 
+                    if(slotADSRVol[i]<0) break;
                     slotADSRState[i]++;
                 break;
                 case 1:
@@ -915,8 +909,8 @@ char * NDS_loop(){
                     slotFree[i]=0;
                 break;
             }
-            volModL[i]=NDS_Cnv_Vol(fadeVol+slotNoteVel[i]+(slotADSRVol[i]>>7)+chVol[slotChannel[i]]+slotPanL[i]);
-            volModR[i]=NDS_Cnv_Vol(fadeVol+slotNoteVel[i]+(slotADSRVol[i]>>7)+chVol[slotChannel[i]]+slotPanR[i]);
+            volModL[i]=NDS_Cnv_Vol(fadeVol+slotNoteVel[i]+(slotADSRVol[i]>>7)+chVol[slotChannel[i]]+slotPanL[i])/256.0f;
+            volModR[i]=NDS_Cnv_Vol(fadeVol+slotNoteVel[i]+(slotADSRVol[i]>>7)+chVol[slotChannel[i]]+slotPanR[i])/256.0f;
         }
     }
     mixer[0]=0;
@@ -925,39 +919,28 @@ char * NDS_loop(){
         if(slotFree[i]!=0 && !sampleDone[i]){
             signed long tune=slotMidiFreq[i]+chPitchBendCur[slotChannel[i]];
             if(tune<0) tune=0;
-            if(tune>=(128*128)){
-                printf("Freq to high:%X\n",tune);
-                tune=(128*128)-1;
+            if(tune>=0x4000){
+                //printf("Freq to high:%X\n",tune);
+                tune=0x3FFF;
             }
             tune=FREQ_TABLE[tune];
-            slotPitchFill[i]+=tune;
-            while(slotPitchFill[i]>=curKeyRoot[i] && curKeyRoot[i]>0){
-                slotPitchFill[i]-=curKeyRoot[i];
-                samplePitchFill[i]+=samplePitch[slotSampleID[i]];
-                while(samplePitchFill[i]>=sampleRate){
-                    samplePitchFill[i]-=sampleRate;
-                    sampleOutput[i]=decSWAVBuffer[samplePos[i]+sampleOffset[i]];
-                    samplePos[i]++;
-                    if(samplePos[i]>=sampleEnd[slotSampleID[i]]){
-                        if(sampleLoops[slotSampleID[i]]){
-                            samplePos[i]=sampleLoop[slotSampleID[i]];
-                        }else{
-                            sampleDone[i]=true;
-                            slotFree[i]=0;
-                        }
-                    }
-
+            if(curKeyRoot[i]>0){
+                sampleOutput[i]=decSWAVBuffer[int(samplePos[i]+sampleOffset[i])];
+                samplePos[i]+=((samplePitch[slotSampleID[i]]*(tune/curKeyRoot[i]))/sampleRate);
+            if(samplePos[i]>=sampleEnd[slotSampleID[i]]){
+                if(sampleLoops[slotSampleID[i]]){
+                    samplePos[i]=fmod(samplePos[i],sampleLoop[slotSampleID[i]]);
+                }else{
+                    sampleDone[i]=true;
+                    slotFree[i]=0;
                 }
-            }			
+            }
+        }
             mixer[0]+=(sampleOutput[i]*volModL[i]);//left
-            mixer[1]+=(sampleOutput[i]*volModR[i]);//left
+            mixer[1]+=(sampleOutput[i]*volModR[i]);//right
         }
     }
-    soundOut[0]=((mixer[0]>>3) & 0xFF);
-    soundOut[1]=((mixer[0]>>11) & 0xFF);
-    soundOut[2]=((mixer[0]>>19) & 0xFF);
-    soundOut[3]=((mixer[1]>>3) & 0xFF);
-    soundOut[4]=((mixer[1]>>11) & 0xFF);
-    soundOut[5]=((mixer[1]>>19) & 0xFF);
+    soundOut[0]=mixer[0];
+    soundOut[1]=mixer[1];
 	return soundOut;
 }

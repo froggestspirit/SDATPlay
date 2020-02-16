@@ -40,24 +40,22 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <termios.h>
 #include <math.h>
 #define min(a,b) fmin(a,b)
 #define max(a,b) fmax(a,b)
 #include <portaudio.h>
 #define NUM_SECONDS   (40)
-#define SAMPLE_RATE   (96000)
+#define SAMPLE_RATE   (48000)
 unsigned char sdat[0x8000000];
 int filePos;
 int song;
 int totalSongs;
 
-char *DSAudio;
-char *lastDSAudio;
+float *DSAudio;
+float *lastDSAudio;
 char *filename;
 FILE* sdatf = NULL;
 #include "AudioGeneratorNDS.h"
-#include <ncurses.h>
 
 typedef struct
 {
@@ -65,39 +63,6 @@ typedef struct
     float right_phase;
 }
 paTestData;
-
-struct termios saved_attributes;
-
-void
-reset_input_mode (void)
-{
-  tcsetattr (STDIN_FILENO, TCSANOW, &saved_attributes);
-}
-
-void
-set_input_mode (void)
-{
-  struct termios tattr;
-  char *name;
-
-  /* Make sure stdin is a terminal. */
-  if (!isatty (STDIN_FILENO))
-    {
-      fprintf (stderr, "Not a terminal.\n");
-      exit (EXIT_FAILURE);
-    }
-
-  /* Save the terminal attributes so we can restore them later. */
-  tcgetattr (STDIN_FILENO, &saved_attributes);
-  atexit (reset_input_mode);
-
-  /* Set the funny terminal modes. */
-  tcgetattr (STDIN_FILENO, &tattr);
-  tattr.c_lflag &= ~(ICANON|ECHO); /* Clear ICANON and ECHO. */
-  tattr.c_cc[VMIN] = 1;
-  tattr.c_cc[VTIME] = 0;
-  tcsetattr (STDIN_FILENO, TCSAFLUSH, &tattr);
-}
 
 /* This routine will be called by the PortAudio engine when audio is needed.
 ** It may called at interrupt level on some machines so don't do anything
@@ -111,8 +76,8 @@ static int patestCallback( const void *inputBuffer, void *outputBuffer,
 {
     /* Cast data passed through stream to our structure. */
     paTestData *data = (paTestData*)userData;
-    char *out = (char*)outputBuffer;
-    unsigned int i;
+    float *out = (float*)outputBuffer;
+    static int i;
     (void) inputBuffer; /* Prevent unused variable warning. */
 
     for( i=0; i<framesPerBuffer; i++ )
@@ -122,40 +87,27 @@ static int patestCallback( const void *inputBuffer, void *outputBuffer,
             lastDSAudio=DSAudio;
         }else{
             DSAudio=lastDSAudio;
-            if(song>=(totalSongs-1)) song=-1;
-            NDS_begin(++song,SAMPLE_RATE);
         }
-        *out++ = (char)*(DSAudio);
-        *out++ = (char)*(DSAudio+1);
-        *out++ = (char)*(DSAudio+2);
-        *out++ = (char)*(DSAudio+3);
-        *out++ = (char)*(DSAudio+4);
-        *out++ = (char)*(DSAudio+5);
-        //*out++ = data->left_phase;  /* left */
-        //*out++ = data->right_phase;  /* right */
-        /* Generate simple sawtooth phaser that ranges between -1.0 and 1.0. */
-        data->left_phase += 0.01f;
-        /* When signal reaches top, drop back down. */
-        if( data->left_phase >= 1.0f ) data->left_phase -= 2.0f;
-        /* higher pitch so we can distinguish left and right. */
-        data->right_phase += 0.03f;
-        if( data->right_phase >= 1.0f ) data->right_phase -= 2.0f;
+        *out++ = *(DSAudio);
+        *out++ = *(DSAudio+1);
     }
     return 0;
 }
 
 /*******************************************************************/
 static paTestData data;
+static float *out;
 int main(int argc, char *argv[])
 {
     song=0;
+	bool inf=false;
     if(argc>1){
         filename=argv[1];
     }else{
         filename="platinum.sdat";
     }
-    set_input_mode ();
-    
+    if(argc>2) song=atoi(argv[2]);
+	if(argc>3) inf=true;
     PaStream *stream;
     PaError err;
     sdatf = fopen(filename, "rb");
@@ -165,10 +117,7 @@ int main(int argc, char *argv[])
 	if (sizef!=fread(sdat, 1, sizef, sdatf)) return false;
 	printf("SDAT Size: %X\n",sizef);
 	fclose(sdatf);
-    NDS_begin(song,SAMPLE_RATE);//SDAT Song Number, Frequency
-    printf("PortAudio Test: output sawtooth wave.\n");
-    /* Initialize our data for use by callback. */
-    data.left_phase = data.right_phase = 0.0;
+    NDS_begin(song,SAMPLE_RATE,inf);//SDAT Song Number, Frequency, infinite loop
     /* Initialize library before making any other calls. */
     err = Pa_Initialize();
     if( err != paNoError ) goto error;
@@ -177,34 +126,18 @@ int main(int argc, char *argv[])
     err = Pa_OpenDefaultStream( &stream,
                                 0,          /* no input channels */
                                 2,          /* stereo output */
-                                paInt24,  /* 24 bit output */
+                                paFloat32,  /* 32 bit output */
                                 SAMPLE_RATE,
-                                256,        /* frames per buffer */
+                                0x1000,        /* frames per buffer */
                                 patestCallback,
                                 &data );
     if( err != paNoError ) goto error;
 
     err = Pa_StartStream( stream );
     if( err != paNoError ) goto error;
-
-    /* Sleep for several seconds. */
-    //Pa_Sleep(NUM_SECONDS*1000);
-    keypad(stdscr, TRUE);
     while(1){
-        static int ch;
-        //while ((ch = getchar()) != ERR) {
-        ch = getchar();
-        if      (ch=='a'){
-            err = Pa_StopStream( stream );
-            if(song<=0) song=totalSongs;
-            NDS_begin(--song,SAMPLE_RATE);
-            err = Pa_StartStream( stream );
-        }else if (ch=='s'){
-            err = Pa_StopStream( stream );
-            if(song>=(totalSongs-1)) song=-1;
-            NDS_begin(++song,SAMPLE_RATE);
-            err = Pa_StartStream( stream );
-        }else if (ch=='x'){
+        sleep(2);
+	if(!running){
             err = Pa_StopStream( stream );
             NDS_stop();
             return 0;
@@ -215,7 +148,7 @@ int main(int argc, char *argv[])
     err = Pa_CloseStream( stream );
     if( err != paNoError ) goto error;
     Pa_Terminate();
-    printf("Test finished.\n");
+    printf("Done!\n");
     return err;
 error:
     Pa_Terminate();

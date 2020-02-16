@@ -1,3 +1,3 @@
 echo Building...
-gcc -Wall main.cpp -lm -lportaudio -lpthread -lncurses -o paTest-`uname -m`
+gcc -Wall main.cpp -lm -lportaudio -o SDATPlay-`uname -m`
 echo Done!

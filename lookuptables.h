@@ -1,5 +1,5 @@
 unsigned char NDS_Cnv_Attack(unsigned char attk){//table generated from Fincs FSS
-	static const char lut[] =
+	static const unsigned char lut[] =
 	{
 		255,254,253,252,
 		251,250,249,248,247,246,245,244,243,242,
