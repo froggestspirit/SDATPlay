@@ -242,10 +242,7 @@ int NDS_decSample(int ID, int freeSpace, unsigned long address){
         readTemp(4);
         sampleLoop[ID]=((temp[2]+(temp[3]<<8))<<2);
         readTemp(4);
-        sampleLoopLength[ID]=(temp[3]<<8);
-        sampleLoopLength[ID]=((sampleLoopLength[ID]+temp[2])<<8);
-        sampleLoopLength[ID]=((sampleLoopLength[ID]+temp[1])<<8);
-        sampleLoopLength[ID]=((sampleLoopLength[ID]+temp[0])<<2);
+        sampleLoopLength[ID]=(temp[3]<<26)+(temp[2]<<18)+(temp[1]<<10)+(temp[0]<<2);
         sampleEnd[ID]=sampleLoop[ID]+sampleLoopLength[ID];
         sampleOffset[ID]=address+12;//skip the header
     }
@@ -929,7 +926,7 @@ float * NDS_loop(){
                 samplePos[i]+=((samplePitch[slotSampleID[i]]*(tune/curKeyRoot[i]))/sampleRate);
             if(samplePos[i]>=sampleEnd[slotSampleID[i]]){
                 if(sampleLoops[slotSampleID[i]]){
-                    samplePos[i]=fmod(samplePos[i],sampleLoop[slotSampleID[i]]);
+                    samplePos[i]=sampleLoop[slotSampleID[i]]+fmod((samplePos[i]-sampleLoop[slotSampleID[i]]),sampleLoopLength[slotSampleID[i]]);
                 }else{
                     sampleDone[i]=true;
                     slotFree[i]=0;

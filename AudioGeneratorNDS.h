@@ -125,7 +125,7 @@ float samplePitch[0x80*0x80];
 unsigned long sampleOffset[0x80*0x80];//offset of the current sample
 float sampleEnd[0x80*0x80];//the end of the sample
 float sampleLoop[0x80*0x80];//loop point
-unsigned int sampleLoopLength[0x80*0x80];//length of loop point to end
+float sampleLoopLength[0x80*0x80];//length of loop point to end
 unsigned char sampleFormat[0x80*0x80];//format of the sample
 bool sampleLoops[0x80*0x80];//does the sample loop
 
