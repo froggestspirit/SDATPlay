@@ -14,6 +14,7 @@ void readTempKey(int bytes){
 }
 
 #include "lookuptables.h"
+#include "lfsr.h"
 
 void NDSbuttonloop(){
 	infLoop^=1;
@@ -136,6 +137,28 @@ bool NDS_decInst(int index){//decode samples to a buffer for faster playback (mo
 		keyRelease[keyiPointer]=temp[3];
 		temp[0]=sdat[filePos++];
 		keyPan[keyiPointer]=temp[0];
+	}else if(instType[index]==3){//Noise PSG
+        filePos=instAddress[index];
+		readTemp(4);
+        tempKey[0]=sdat[filePos++];
+		keySample[keyiPointer]=temp[0];
+        keyRootVal[keyiPointer]=keyRoot[keyiPointer]=tempKey[0];
+		keyRoot[keyiPointer]=FREQ_TABLE[(keyRoot[keyiPointer]<<7)];
+        decSWAVPointer[keyiPointer]=-1;//use a different table
+        filePos=instAddress[index]+5;
+		readTemp(4);
+		keyAttack[keyiPointer]=temp[0];
+		keyDecay[keyiPointer]=temp[1];
+		keySustain[keyiPointer]=temp[2];
+		keyRelease[keyiPointer]=temp[3];
+		temp[0]=sdat[filePos++];
+		keyPan[keyiPointer]=temp[0];
+        sampleFormat[keyiPointer]=3+temp[0];//store the PSG duty here
+        sampleLoops[keyiPointer]=true;
+        samplePitch[keyiPointer]=0x6E0;//This isn't divisible by 4, so we multiply the length of the 8-bit waveforms by 4
+        sampleLoop[keyiPointer]=0;
+        sampleLoopLength[keyiPointer]=0x7FFF;
+        sampleEnd[keyiPointer]=0x7FFF;
 	}else if(instType[index]<16){//single inst
 		filePos=instAddress[index];
 		readTemp(4);
@@ -922,8 +945,14 @@ float * NDS_loop(){
             }
             tune=FREQ_TABLE[tune];
             if(curKeyRoot[i]>0){
-                sampleOutput[i]=decSWAVBuffer[int(samplePos[i]+sampleOffset[i])];
-                samplePos[i]+=((samplePitch[slotSampleID[i]]*(tune/curKeyRoot[i]))/sampleRate);
+                if(sampleOffset[i]==-1){
+                    soundChannel4Bit = int(samplePos[i]) & 7;
+                    sampleOutput[i]=(((lfsr15[int(samplePos[i]/8)] << soundChannel4Bit) & 0x80) >> 7) * (0x7FFF/float(0x080000));
+                    samplePos[i]+=((samplePitch[slotSampleID[i]]*(tune/curKeyRoot[i]))/sampleRate);
+                }else{
+                    sampleOutput[i]=decSWAVBuffer[int(samplePos[i]+sampleOffset[i])];
+                    samplePos[i]+=((samplePitch[slotSampleID[i]]*(tune/curKeyRoot[i]))/sampleRate);
+                }
             if(samplePos[i]>=sampleEnd[slotSampleID[i]]){
                 if(sampleLoops[slotSampleID[i]]){
                     samplePos[i]=sampleLoop[slotSampleID[i]]+fmod((samplePos[i]-sampleLoop[slotSampleID[i]]),sampleLoopLength[slotSampleID[i]]);

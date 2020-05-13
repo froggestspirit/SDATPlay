@@ -151,6 +151,7 @@ unsigned char keyPan[0x80*0x80];
 
 float lastSample[2];
 
+unsigned short soundChannel4Bit;
 int decSWAVFree;//position for free space
 unsigned long decSWAVPointer[0x80*0x80];
 float decSWAVBuffer[0x2000000];
