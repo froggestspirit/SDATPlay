@@ -40,22 +40,16 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
-#define min(a,b) fmin(a,b)
-#define max(a,b) fmax(a,b)
 #include <portaudio.h>
-#define NUM_SECONDS   (40)
-#define SAMPLE_RATE   (48000)
-unsigned char sdat[0x8000000];
-int filePos;
-int song;
-int totalSongs;
+#define MIXER_FREQ   48000
+int curSong;
 
 float *DSAudio;
 float *lastDSAudio;
 char *filename;
-FILE* sdatf = NULL;
-#include "AudioGeneratorNDS.h"
+#include "sdatplay.h"
+
+bool isRunning;
 
 typedef struct
 {
@@ -77,19 +71,18 @@ static int patestCallback( const void *inputBuffer, void *outputBuffer,
     /* Cast data passed through stream to our structure. */
     paTestData *data = (paTestData*)userData;
     float *out = (float*)outputBuffer;
-    static int i;
+    static unsigned int i;
     (void) inputBuffer; /* Prevent unused variable warning. */
 
-    for( i=0; i<framesPerBuffer; i++ )
-    {
-        DSAudio=NDS_loop();
-        if(running){
-            lastDSAudio=DSAudio;
+    for(i = 0; i < framesPerBuffer; i++){
+        DSAudio = RunMixerFrame();
+        if(isRunning){
+            lastDSAudio = DSAudio;
         }else{
-            DSAudio=lastDSAudio;
+            DSAudio = lastDSAudio;
         }
         *out++ = *(DSAudio);
-        *out++ = *(DSAudio+1);
+        *out++ = *(DSAudio + 1);
     }
     return 0;
 }
@@ -97,28 +90,28 @@ static int patestCallback( const void *inputBuffer, void *outputBuffer,
 /*******************************************************************/
 static paTestData data;
 static float *out;
-int main(int argc, char *argv[])
-{
-    song=0;
+int main(int argc, char *argv[]){
+    curSong=0;
 	bool inf=false;
     if(argc>1){
         filename=argv[1];
     }else{
         filename="platinum.sdat";
     }
-    if(argc>2) song=atoi(argv[2]);
+    if(argc>2) curSong=atoi(argv[2]);
 	if(argc>3) inf=true;
+    sdatplay_init(MIXER_FREQ);
+    //sdat_load_song(filename, curSong);
+    load_sseq("pl_sound_data/SSEQ/SEQ_BA_POKE.sseq");
+    set_inst_type(56, 17);
+    set_inst_range(56, 0, 64, "pl_sound_data/SWAR/SWAV/Accordion_C3.swav", 48, 127, 127, 127, 118, 64);
+    set_inst_range(56, 65, 84, "pl_sound_data/SWAR/SWAV/Accordion_C4.swav", 60, 127, 127, 127, 118, 64);
+    set_inst_range(56, 85, 127, "pl_sound_data/SWAR/SWAV/Accordion_C5.swav", 72, 127, 127, 127, 118, 64);
+    //song_seek(10000);
+    isRunning = true;
+    /* Initialize library before making any other calls. */
     PaStream *stream;
     PaError err;
-    sdatf = fopen(filename, "rb");
-	if (0!=fseek(sdatf, 0, SEEK_END)) return false;
-	int sizef=ftell(sdatf);
-	if (0!=fseek(sdatf, 0, SEEK_SET)) return false;
-	if (sizef!=fread(sdat, 1, sizef, sdatf)) return false;
-	printf("SDAT Size: %X\n",sizef);
-	fclose(sdatf);
-    NDS_begin(song,SAMPLE_RATE,inf);//SDAT Song Number, Frequency, infinite loop
-    /* Initialize library before making any other calls. */
     err = Pa_Initialize();
     if( err != paNoError ) goto error;
     
@@ -127,7 +120,7 @@ int main(int argc, char *argv[])
                                 0,          /* no input channels */
                                 2,          /* stereo output */
                                 paFloat32,  /* 32 bit output */
-                                SAMPLE_RATE,
+                                MIXER_FREQ,
                                 0x1000,        /* frames per buffer */
                                 patestCallback,
                                 &data );
@@ -137,9 +130,9 @@ int main(int argc, char *argv[])
     if( err != paNoError ) goto error;
     while(1){
         sleep(2);
-	if(!running){
+	if(!isRunning){
             err = Pa_StopStream( stream );
-            NDS_stop();
+            //sdatplay_close();
             return 0;
         }
     }

@@ -1,8 +1,10 @@
 
-bool running;
-void readTemp(int bytes);
-void readTempKey(int bytes);
-bool NDS_begin(int songID, int sRate);
+int filePos;
+int song;
+int totalSongs;
+void readTemp(int bytes, unsigned char *source);
+void readTempKey(int bytes, unsigned char *source);
+bool sdatplay_init(int sRate);
 bool NDS_loadSong(int id);
 unsigned char NDS_Cnv_Attack(unsigned char attk);//table generated from Fincs FSS
 int NDS_Calc_Attack(unsigned char i, unsigned char frame);
@@ -14,9 +16,8 @@ unsigned long NDS_getSampleAddress(unsigned char bank,unsigned short inst);
 unsigned long NDS_getAddress(unsigned long addr);
 bool NDS_decInst(int index);
 int NDS_decSample(int ID, int freeSpace, unsigned long address);
-float * NDS_loop();
-bool NDS_stop();
-bool NDS_isRunning(){ return running;}
+float * RunMixerFrame();
+void song_seek(int pos);
 void buttonLoop();
 void buttonPause();
 void buttonNext();
@@ -155,5 +156,3 @@ unsigned short soundChannel4Bit;
 int decSWAVFree;//position for free space
 unsigned long decSWAVPointer[0x80*0x80];
 float decSWAVBuffer[0x2000000];
-
-#include "AudioGeneratorNDS.cpp"

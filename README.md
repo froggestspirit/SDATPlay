@@ -1,7 +1,7 @@
 Basic Linux SDAT Player 1.4
 
 
-to build: run "sh build.sh" while in the directory. portaudio is needed.
+to build: run "make" while in the directory. portaudio is needed.
 
 to run: run the executable in CLI with the SDAT passed as an argument. If no SDAT is specified, it will look for "platinum.sdat" in the directory
 
