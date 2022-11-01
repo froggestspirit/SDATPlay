@@ -1,3 +1,0 @@
-echo Building...
-gcc -Wall main.cpp -lm -lportaudio -o SDATPlay-`uname -m`
-echo Done!
